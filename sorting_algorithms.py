@@ -3,6 +3,8 @@ Sorting Algorithms Implementation
 Contains implementations of various sorting algorithms for educational purposes.
 """
 
+import bisect
+
 def bubble_sort(arr):
     """Bubble Sort - O(n²) time, O(1) space"""
     n = len(arr)
@@ -260,11 +262,9 @@ def tim_sort(arr):
     """Tim Sort - Python's actual algorithm implementation"""
     if len(arr) < 2:
         return arr[:]
-    
-    # Tim Sort parameters
+
     MIN_MERGE = 32
-    MIN_GALLOP = 7
-    
+
     def calc_min_run(n):
         """Calculate minimum run length for Tim Sort"""
         r = 0
@@ -272,132 +272,398 @@ def tim_sort(arr):
             r |= n & 1
             n >>= 1
         return n + r
-    
-    def binary_insertion_sort(arr, left, right):
-        """Binary insertion sort for small arrays"""
-        for i in range(left + 1, right + 1):
-            key = arr[i]
-            j = left
-            while j < i and arr[j] <= key:
-                j += 1
-            while j < i:
-                arr[j], arr[j+1] = arr[j+1], arr[j]
-                j += 1
-    
-    def merge(arr, l, m, r):
-        """Merge two sorted runs with galloping optimization"""
-        left = arr[l:m+1]
-        right = arr[m+1:r+1]
-        
-        i = j = 0
-        k = l
-        left_galloping = right_galloping = False
-        left_wins = right_wins = 0
-        
-        while i < len(left) and j < len(right):
-            if left_galloping:
-                # Galloping mode for left array
-                pos = gallop_search(right, j, left[i])
-                if pos > j:
-                    # Copy elements from right
-                    for idx in range(j, pos):
-                        arr[k] = right[idx]
-                        k += 1
-                    j = pos
-                left_galloping = False
-                left_wins = 0
-                right_wins = 0
-            elif right_galloping:
-                # Galloping mode for right array
-                pos = gallop_search(left, i, right[j])
-                if pos > i:
-                    # Copy elements from left
-                    for idx in range(i, pos):
-                        arr[k] = left[idx]
-                        k += 1
-                    i = pos
-                right_galloping = False
-                left_wins = 0
-                right_wins = 0
-            else:
-                # Normal comparison mode
-                if left[i] <= right[j]:
-                    arr[k] = left[i]
-                    i += 1
-                    left_wins += 1
-                    right_wins = 0
-                    # Enter galloping mode if we win enough times
-                    if left_wins >= MIN_GALLOP:
-                        left_galloping = True
-                else:
-                    arr[k] = right[j]
-                    j += 1
-                    right_wins += 1
-                    left_wins = 0
-                    # Enter galloping mode if we win enough times
-                    if right_wins >= MIN_GALLOP:
-                        right_galloping = True
-                k += 1
-        
-        # Copy remaining elements
-        while i < len(left):
-            arr[k] = left[i]
-            i += 1
-            k += 1
-        
-        while j < len(right):
-            arr[k] = right[j]
-            j += 1
-            k += 1
-    
-    def gallop_search(arr, start, key):
-        """Binary search to find position where key should be inserted"""
-        left = start
-        right = len(arr)
-        
-        # Exponential search to find range
-        last = start
-        jump = 1
-        while last < len(arr) and arr[last] <= key:
-            left = last
-            last += jump
-            jump *= 2
-        
-        if last >= len(arr):
-            right = len(arr)
+
+    def binary_sort(a, lo, hi, start):
+        if start == lo:
+            start += 1
+        for i in range(start, hi):
+            pivot = a[i]
+            pos = bisect.bisect_right(a, pivot, lo, i)
+            j = i
+            while j > pos:
+                a[j] = a[j - 1]
+                j -= 1
+            a[pos] = pivot
+
+    def count_run_and_make_ascending(a, lo, hi):
+        run_hi = lo + 1
+        if run_hi == hi:
+            return 1
+
+        if a[run_hi] < a[lo]:
+            run_hi += 1
+            while run_hi < hi and a[run_hi] < a[run_hi - 1]:
+                run_hi += 1
+            a[lo:run_hi] = reversed(a[lo:run_hi])
         else:
-            right = last
-        
-        # Binary search in the found range
-        while left < right:
-            mid = (left + right) // 2
-            if arr[mid] <= key:
-                left = mid + 1
+            run_hi += 1
+            while run_hi < hi and a[run_hi] >= a[run_hi - 1]:
+                run_hi += 1
+
+        return run_hi - lo
+
+    def gallop_left(key, a, base, length, hint):
+        ofs = 1
+        last_ofs = 0
+        if key > a[base + hint]:
+            max_ofs = length - hint
+            while ofs < max_ofs and key > a[base + hint + ofs]:
+                last_ofs = ofs
+                ofs = (ofs << 1) + 1
+                if ofs <= 0:
+                    ofs = max_ofs
+            if ofs > max_ofs:
+                ofs = max_ofs
+            last_ofs += hint
+            ofs += hint
+        else:
+            max_ofs = hint + 1
+            while ofs < max_ofs and key <= a[base + hint - ofs]:
+                last_ofs = ofs
+                ofs = (ofs << 1) + 1
+                if ofs <= 0:
+                    ofs = max_ofs
+            if ofs > max_ofs:
+                ofs = max_ofs
+            tmp = last_ofs
+            last_ofs = hint - ofs
+            ofs = hint - tmp
+        last_ofs += 1
+        while last_ofs < ofs:
+            m = last_ofs + ((ofs - last_ofs) >> 1)
+            if key > a[base + m]:
+                last_ofs = m + 1
             else:
-                right = mid
-        
-        return left
-    
+                ofs = m
+        return ofs
+
+    def gallop_right(key, a, base, length, hint):
+        ofs = 1
+        last_ofs = 0
+        if key < a[base + hint]:
+            max_ofs = hint + 1
+            while ofs < max_ofs and key < a[base + hint - ofs]:
+                last_ofs = ofs
+                ofs = (ofs << 1) + 1
+                if ofs <= 0:
+                    ofs = max_ofs
+            if ofs > max_ofs:
+                ofs = max_ofs
+            tmp = last_ofs
+            last_ofs = hint - ofs
+            ofs = hint - tmp
+        else:
+            max_ofs = length - hint
+            while ofs < max_ofs and key >= a[base + hint + ofs]:
+                last_ofs = ofs
+                ofs = (ofs << 1) + 1
+                if ofs <= 0:
+                    ofs = max_ofs
+            if ofs > max_ofs:
+                ofs = max_ofs
+            last_ofs += hint
+            ofs += hint
+        last_ofs += 1
+        while last_ofs < ofs:
+            m = last_ofs + ((ofs - last_ofs) >> 1)
+            if key < a[base + m]:
+                ofs = m
+            else:
+                last_ofs = m + 1
+        return ofs
+
+    MIN_GALLOP = 7
+
+    class _TimSortState:
+        def __init__(self, a):
+            self.a = a
+            self.min_gallop = MIN_GALLOP
+            self.run_base = []
+            self.run_len = []
+
+        def push_run(self, base, length):
+            self.run_base.append(base)
+            self.run_len.append(length)
+
+        def merge_collapse(self):
+            while len(self.run_len) > 1:
+                n = len(self.run_len) - 2
+                if (
+                    (n > 0 and self.run_len[n - 1] <= self.run_len[n] + self.run_len[n + 1])
+                    or (n > 1 and self.run_len[n - 2] <= self.run_len[n - 1] + self.run_len[n])
+                ):
+                    if self.run_len[n - 1] < self.run_len[n + 1]:
+                        n -= 1
+                    self.merge_at(n)
+                elif self.run_len[n] <= self.run_len[n + 1]:
+                    self.merge_at(n)
+                else:
+                    break
+
+        def merge_force_collapse(self):
+            while len(self.run_len) > 1:
+                n = len(self.run_len) - 2
+                if n > 0 and self.run_len[n - 1] < self.run_len[n + 1]:
+                    n -= 1
+                self.merge_at(n)
+
+        def merge_at(self, i):
+            a = self.a
+            base1 = self.run_base[i]
+            len1 = self.run_len[i]
+            base2 = self.run_base[i + 1]
+            len2 = self.run_len[i + 1]
+
+            self.run_len[i] = len1 + len2
+            if i == len(self.run_len) - 3:
+                self.run_base[i + 1] = self.run_base[i + 2]
+                self.run_len[i + 1] = self.run_len[i + 2]
+            self.run_base.pop()
+            self.run_len.pop()
+
+            k = gallop_right(a[base2], a, base1, len1, 0)
+            base1 += k
+            len1 -= k
+            if len1 == 0:
+                return
+
+            len2 = gallop_left(a[base1 + len1 - 1], a, base2, len2, len2 - 1)
+            if len2 == 0:
+                return
+
+            if len1 <= len2:
+                self.merge_lo(base1, len1, base2, len2)
+            else:
+                self.merge_hi(base1, len1, base2, len2)
+
+        def merge_lo(self, base1, len1, base2, len2):
+            a = self.a
+            tmp = a[base1 : base1 + len1]
+            cursor1 = 0
+            cursor2 = base2
+            dest = base1
+
+            a[dest] = a[cursor2]
+            dest += 1
+            cursor2 += 1
+            len2 -= 1
+            if len2 == 0:
+                a[dest : dest + len1] = tmp[cursor1 : cursor1 + len1]
+                return
+            if len1 == 1:
+                a[dest : dest + len2] = a[cursor2 : cursor2 + len2]
+                a[dest + len2] = tmp[cursor1]
+                return
+
+            min_gallop = self.min_gallop
+
+            while True:
+                count1 = 0
+                count2 = 0
+
+                while True:
+                    if a[cursor2] < tmp[cursor1]:
+                        a[dest] = a[cursor2]
+                        dest += 1
+                        cursor2 += 1
+                        count2 += 1
+                        count1 = 0
+                        len2 -= 1
+                        if len2 == 0:
+                            break
+                    else:
+                        a[dest] = tmp[cursor1]
+                        dest += 1
+                        cursor1 += 1
+                        count1 += 1
+                        count2 = 0
+                        len1 -= 1
+                        if len1 == 1:
+                            break
+                    if (count1 | count2) >= min_gallop:
+                        break
+
+                if len2 == 0 or len1 == 1:
+                    break
+
+                while True:
+                    count1 = gallop_right(a[cursor2], tmp, cursor1, len1, 0)
+                    if count1 != 0:
+                        a[dest : dest + count1] = tmp[cursor1 : cursor1 + count1]
+                        dest += count1
+                        cursor1 += count1
+                        len1 -= count1
+                        if len1 <= 1:
+                            break
+
+                    a[dest] = a[cursor2]
+                    dest += 1
+                    cursor2 += 1
+                    len2 -= 1
+                    if len2 == 0:
+                        break
+
+                    count2 = gallop_left(tmp[cursor1], a, cursor2, len2, 0)
+                    if count2 != 0:
+                        a[dest : dest + count2] = a[cursor2 : cursor2 + count2]
+                        dest += count2
+                        cursor2 += count2
+                        len2 -= count2
+                        if len2 == 0:
+                            break
+
+                    a[dest] = tmp[cursor1]
+                    dest += 1
+                    cursor1 += 1
+                    len1 -= 1
+                    if len1 == 1:
+                        break
+
+                    min_gallop -= 1
+                    if not (count1 >= MIN_GALLOP or count2 >= MIN_GALLOP):
+                        break
+
+                if min_gallop < 0:
+                    min_gallop = 0
+                min_gallop += 2
+
+                if len2 == 0 or len1 == 1:
+                    break
+
+            self.min_gallop = max(1, min_gallop)
+
+            if len1 == 1:
+                a[dest : dest + len2] = a[cursor2 : cursor2 + len2]
+                a[dest + len2] = tmp[cursor1]
+            elif len1 > 0:
+                a[dest : dest + len1] = tmp[cursor1 : cursor1 + len1]
+
+        def merge_hi(self, base1, len1, base2, len2):
+            a = self.a
+            tmp = a[base2 : base2 + len2]
+            cursor1 = base1 + len1 - 1
+            cursor2 = len2 - 1
+            dest = base2 + len2 - 1
+
+            a[dest] = a[cursor1]
+            dest -= 1
+            cursor1 -= 1
+            len1 -= 1
+            if len1 == 0:
+                a[dest - len2 + 1 : dest + 1] = tmp[0:len2]
+                return
+            if len2 == 1:
+                dest -= len1
+                cursor1 -= len1
+                a[dest + 1 : dest + 1 + len1] = a[cursor1 + 1 : cursor1 + 1 + len1]
+                a[dest] = tmp[cursor2]
+                return
+
+            min_gallop = self.min_gallop
+
+            while True:
+                count1 = 0
+                count2 = 0
+
+                while True:
+                    if tmp[cursor2] < a[cursor1]:
+                        a[dest] = a[cursor1]
+                        dest -= 1
+                        cursor1 -= 1
+                        count1 += 1
+                        count2 = 0
+                        len1 -= 1
+                        if len1 == 0:
+                            break
+                    else:
+                        a[dest] = tmp[cursor2]
+                        dest -= 1
+                        cursor2 -= 1
+                        count2 += 1
+                        count1 = 0
+                        len2 -= 1
+                        if len2 == 1:
+                            break
+                    if (count1 | count2) >= min_gallop:
+                        break
+
+                if len1 == 0 or len2 == 1:
+                    break
+
+                while True:
+                    count1 = len1 - gallop_right(tmp[cursor2], a, base1, len1, len1 - 1)
+                    if count1 != 0:
+                        dest -= count1
+                        cursor1 -= count1
+                        len1 -= count1
+                        a[dest + 1 : dest + 1 + count1] = a[cursor1 + 1 : cursor1 + 1 + count1]
+                        if len1 == 0:
+                            break
+
+                    a[dest] = tmp[cursor2]
+                    dest -= 1
+                    cursor2 -= 1
+                    len2 -= 1
+                    if len2 == 1:
+                        break
+
+                    count2 = len2 - gallop_left(a[cursor1], tmp, 0, len2, len2 - 1)
+                    if count2 != 0:
+                        dest -= count2
+                        cursor2 -= count2
+                        len2 -= count2
+                        a[dest + 1 : dest + 1 + count2] = tmp[cursor2 + 1 : cursor2 + 1 + count2]
+                        if len2 <= 1:
+                            break
+
+                    a[dest] = a[cursor1]
+                    dest -= 1
+                    cursor1 -= 1
+                    len1 -= 1
+                    if len1 == 0:
+                        break
+
+                    min_gallop -= 1
+                    if not (count1 >= MIN_GALLOP or count2 >= MIN_GALLOP):
+                        break
+
+                if min_gallop < 0:
+                    min_gallop = 0
+                min_gallop += 2
+
+                if len1 == 0 or len2 == 1:
+                    break
+
+            self.min_gallop = max(1, min_gallop)
+
+            if len2 == 1:
+                dest -= len1
+                cursor1 -= len1
+                a[dest + 1 : dest + 1 + len1] = a[cursor1 + 1 : cursor1 + 1 + len1]
+                a[dest] = tmp[cursor2]
+            elif len2 > 0:
+                a[dest - len2 + 1 : dest + 1] = tmp[0:len2]
+
     n = len(arr)
     min_run = calc_min_run(n)
-    
-    # Sort individual runs using binary insertion sort
-    for start in range(0, n, MIN_MERGE):
-        end = min(start + MIN_MERGE - 1, n - 1)
-        binary_insertion_sort(arr, start, end)
-    
-    # Merge runs
-    size = MIN_MERGE
-    while size < n:
-        for left in range(0, n, 2 * size):
-            mid = left + size - 1
-            right = min((left + 2 * size - 1), n - 1)
-            
-            if mid < right:
-                merge(arr, left, mid, right)
-        
-        size *= 2
-    
+    state = _TimSortState(arr)
+
+    lo = 0
+    remaining = n
+    while remaining:
+        run_len = count_run_and_make_ascending(arr, lo, n)
+        if run_len < min_run:
+            force = min(min_run, remaining)
+            binary_sort(arr, lo, lo + force, lo + run_len)
+            run_len = force
+
+        state.push_run(lo, run_len)
+        state.merge_collapse()
+
+        lo += run_len
+        remaining -= run_len
+
+    state.merge_force_collapse()
     return arr
 
 
