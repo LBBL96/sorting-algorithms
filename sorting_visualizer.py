@@ -4,7 +4,6 @@ from typing import Generator
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from matplotlib.patches import Rectangle
 
 
 def bubble_sort_gen(arr: list[int]) -> Generator[tuple[list[int], int, int, str], None, None]:
@@ -318,13 +317,25 @@ class SortingVisualizer:
 
             return [bar for bars in bar_containers.values() for bar in bars]
 
+        def frame_generator():
+            frame = 0
+            max_frames = 500
+            while frame < max_frames:
+                if all(finished.values()):
+                    for _ in range(24):
+                        yield frame
+                    return
+                yield frame
+                frame += 1
+
         ani = animation.FuncAnimation(
             fig,
             update,
-            frames=10000,
+            frames=frame_generator,
             interval=interval,
             blit=False,
             repeat=False,
+            save_count=500,
         )
 
         return ani, fig
@@ -403,7 +414,8 @@ if __name__ == "__main__":
         algorithms=demo_algos,
         array_size=20,
         filename="sorting_comparison.gif",
-        skip_frames=5,
-        fps=4,
+        skip_frames=1,
+        fps=8,
     )
     print("GIF saved as sorting_comparison.gif")
+ 
