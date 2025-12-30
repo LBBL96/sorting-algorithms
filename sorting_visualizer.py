@@ -349,7 +349,8 @@ class SortingVisualizer:
     ):
         ani, fig = self.create_grid_animation(interval=interval, skip_frames=skip_frames)
         print(f"Saving animation to {filename}...")
-        ani.save(filename, writer="pillow", fps=fps)
+        writer = animation.PillowWriter(fps=fps)
+        ani.save(filename, writer=writer)
         print(f"Saved {filename}")
         plt.close(fig)
 
