@@ -2,7 +2,7 @@
 
 ![Sorting Algorithms Comparison](sorting_comparison.gif)
 
-A collection of sorting algorithm implementations in Python with visualization and benchmarking tools.
+A collection of sorting algorithm implementations in Python with visualization and benchmarking tools. 
 
 ## Algorithms Included
 
